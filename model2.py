@@ -28,7 +28,7 @@ class LogisticRegression(nn.Module):
 class MLP(nn.Module):
     """Multilayer perceptron"""
 
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, num_hidden, embedding_type, pretrained_embeddings=None):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, embedding_type, pretrained_embeddings=None):
         super(MLP, self).__init__()
 
         # TODO: undo this and go back to the previous model architecture w/o embeddings as a layer here
@@ -38,25 +38,15 @@ class MLP(nn.Module):
         # elif embedding_type == "random":
         #     self.embedding = nn.Embedding(
         #         num_embeddings=vocab_size, embedding_dim=embedding_dim)
-        self.num_hidden = num_hidden
-        if self.num_hidden == 0:
-            self.model = nn.Linear(embedding_dim, output_dim)
-        elif self.num_hidden == 1:
-            self.model = nn.Sequential(
-                nn.Linear(embedding_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, output_dim),
-            )
-        else:
-            # build hidden layers dynamically
-            layers = []
-            layers.append(nn.Linear(embedding_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            for _ in range(num_hidden - 1):
-                layers.append(nn.Linear(hidden_dim, hidden_dim))
-                layers.append(nn.ReLU())
-            layers.append(nn.Linear(hidden_dim, output_dim))
-            self.model = nn.Sequential(*layers)
+
+        self.model = nn.Sequential(
+            nn.Linear(embedding_dim, hidden_dim),
+            nn.ReLU(),
+            # nn.Linear(hidden_dim, hidden_dim),
+            # nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
+
+        )
 
     def forward(self, x):
         # Average embeddings of words in the instance

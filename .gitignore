@@ -16,3 +16,8 @@ __MACOSX
 # IDE
 .vscode
 .idea
+
+pdtb/
+data/
+dolma_300_2024_1.2M.100_combined.txt
+glove/

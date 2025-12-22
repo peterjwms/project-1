@@ -10,6 +10,10 @@ within the PDTB dataset by reducing its sense level from a higher level to a low
 one. Usage is described in its docstring.
 * Other than that, you're welcome to add any functionalities in this module
 """
+import torch
+import torch.nn as nn
+from tqdm import tqdm
+
 
 def to_level(sense: str, level: int = 2) -> str:
     """converts a sense in string to a desired level
@@ -44,3 +48,43 @@ def to_level(sense: str, level: int = 2) -> str:
     s_split = sense.split(".")
     s_join = ".".join(s_split[:level])
     return s_join
+
+
+def accuracy(y, preds):
+    """computes the accuracy given the true labels and predicted labels"""
+    num_correct = (y == preds).sum().item()
+    total = y.size(0)
+    return num_correct / total
+
+
+def precision(y, preds):
+    """computes the precision given the true labels and predicted labels"""
+    # TODO: make sure this works for multi-class classification
+    true_positives = ((y == 1) & (preds == 1)).sum().item()
+    predicted_positives = (preds == 1).sum().item()
+    if predicted_positives == 0:
+        return 0.0
+    return true_positives / predicted_positives
+
+
+def recall(y, preds):
+    """computes the recall given the true labels and predicted labels"""
+    # TODO: make sure this works for multi-class classification
+    true_positives = ((y == 1) & (preds == 1)).sum().item()
+    actual_positives = (y == 1).sum().item()
+    if actual_positives == 0:
+        return 0.0
+    return true_positives / actual_positives
+
+
+def f1_score(y, preds):
+    """computes the F1 score given the true labels and predicted labels"""
+    p = precision(y, preds)
+    r = recall(y, preds)
+    if (p + r) == 0:
+        return 0.0
+    return 2 * (p * r) / (p + r)
+
+
+def grid_search():
+    pass  # Placeholder for actual implementation
