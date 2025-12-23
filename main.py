@@ -29,7 +29,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import utils
-from dataset import PDTBDataset, GloveEmbeddingTypes, build_glove_embeddings
+from dataset import PDTBDataset, GloveEmbeddingTypes, build_glove_embeddings, process_glove_file
 from model import CNN, MLP, LogisticRegression
 
 
@@ -79,7 +79,15 @@ def test_loop(model, dataloader, loss_fn):
         all_preds = torch.tensor(all_preds)
         all_labels = torch.tensor(all_labels)
         overall_acc = utils.accuracy(all_labels, all_preds)
+        precision = utils.precision(all_labels, all_preds)
+        recall = utils.recall(all_labels, all_preds)
+        f1 = utils.f1_score(all_labels, all_preds)
         print(f"Overall Accuracy: {overall_acc}")
+        print(f"Precision: {utils.precision(all_labels, all_preds)}")
+        print(f"Recall: {utils.recall(all_labels, all_preds)}")
+        print(f"F1 Score: {utils.f1_score(all_labels, all_preds)}")
+
+    return {"accuracy": overall_acc, "precision": precision, "recall": recall, "f1": f1}
 
 # TODO: could make hyperparameters as arguments, and add argparse for command line options
 # e.g. learning rate, batch size, number of epochs, training size, model type
@@ -110,7 +118,8 @@ if __name__ == "__main__":
         "learning_rate": 0.001,
         "batch_size": 32,
         "num_epochs": 5,
-        "embedding_type": "glove",  # or "random"
+        # "embedding_type": "glove",  # or "random"
+        "embedding_type": "random",
         "embedding_dim": 50,
         "hidden_dim": 128,
         "max_seq_len": 50,
@@ -120,39 +129,74 @@ if __name__ == "__main__":
     # e.g. learning rate, batch size, number of epochs, training size, model
     embedding_type = hyperparams["embedding_type"]
     # TODO: should load glove embeddings here and pass to dataset
-    glove_path = Path(GloveEmbeddingTypes.glove50.value)
-    glove_embeddings = build_glove_embeddings(glove_path=glove_path)
 
     level = 1
 
+    # returns dataset as sequences of token indices, padding to max_seq_len
     train = PDTBDataset(data_path=Path("pdtb/train.json"),
-                        embeddings=glove_embeddings,
-                        embedding_dim=hyperparams["embedding_dim"],
+                        # embeddings=glove_embeddings,
+                        # embedding_dim=hyperparams["embedding_dim"],
                         level=level,
                         max_seq_len=hyperparams["max_seq_len"])
     train_dataloader = DataLoader(train, batch_size=32, shuffle=True)
 
     dev = PDTBDataset(data_path=Path("pdtb/dev.json"),
-                      embeddings=glove_embeddings,
-                      embedding_dim=hyperparams["embedding_dim"],
+                      #   embeddings=glove_embeddings,
+                      #   embedding_dim=hyperparams["embedding_dim"],
                       level=level,
                       max_seq_len=hyperparams["max_seq_len"])
     dev_dataloader = DataLoader(dev, batch_size=32, shuffle=False)
 
+    test = PDTBDataset(data_path=Path("pdtb/test.json"),
+                       #    embeddings=glove_embeddings,
+                       #    embedding_dim=hyperparams["embedding_dim"],
+                       level=level,
+                       max_seq_len=hyperparams["max_seq_len"])
+    test_dataloader = DataLoader(test, batch_size=32, shuffle=False)
+
+    # build glove embeddings matrix from training vocab
+    glove_path = Path(GloveEmbeddingTypes.glove50.value)
+    glove_embeddings = process_glove_file(glove_path=glove_path)
+    glove_embedding_matrix = build_glove_embeddings(
+        vocab=train.idx2word,
+        embeddings=glove_embeddings,
+        embedding_dim=hyperparams["embedding_dim"]
+    )
+    # should be (vocab_size, embedding_dim)
+    print(glove_embedding_matrix.shape)
+    print(glove_embedding_matrix)
+
     # model = LogisticRegression(
-    #     input_dim=hyperparams["embedding_dim"], output_dim=train.num_classes)
-    model = MLP(vocab_size=len(train.word2idx),
-                embedding_dim=hyperparams["embedding_dim"],
-                hidden_dim=100,
-                output_dim=train.num_classes,
-                embedding_type=embedding_type,
-                num_hidden=1,
-                pretrained_embeddings=torch.tensor(train.embedding_matrix, dtype=torch.float32))
-    # model = CNN(input_dim=300, num_filters=100,
-    #             filter_sizes=[3, 4, 5], output_dim=train.num_classes)
+    #     vocab_size=len(train.word2idx),
+    #     embedding_dim=hyperparams["embedding_dim"],
+    #     output_dim=train.num_classes,
+    #     embedding_type=embedding_type,
+    #     pretrained_embeddings=glove_embedding_matrix
+    # )
+    # model = MLP(
+    #     vocab_size=len(train.word2idx),
+    #     embedding_dim=hyperparams["embedding_dim"],
+    #     hidden_dim=128,
+    #     output_dim=train.num_classes,
+    #     embedding_type=embedding_type,
+    #     num_hidden=1,
+    #     pretrained_embeddings=glove_embedding_matrix
+    # )
+    model = CNN(
+        vocab_size=len(train.word2idx),
+        embedding_dim=hyperparams["embedding_dim"],
+        embedding_type=embedding_type,
+        num_hidden=16,
+        kernel_size=3,
+        output_dim=train.num_classes,
+        pretrained_embeddings=glove_embedding_matrix
+    )
+
+    print(model)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=hyperparams["learning_rate"])
+    # use CrossEntropyLoss for multi-class classification
     loss_fn = nn.CrossEntropyLoss()
 
     model.to(device)
@@ -163,4 +207,8 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         print(f"Epoch {epoch+1}/{epochs}")
         train_loop(model, train_dataloader, optimizer, loss_fn)
-        test_loop(model, dev_dataloader, loss_fn)
+        dev_results = test_loop(model, dev_dataloader, loss_fn)
+
+    print("Training complete.")
+    print("Evaluating on test set...")
+    test_results = test_loop(model, test_dataloader, loss_fn)

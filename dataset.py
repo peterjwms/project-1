@@ -27,13 +27,20 @@ from utils import to_level
 class PDTBDataset(Dataset):
     """Dataset class for the PDTB dataset"""
 
-    def __init__(self, data_path: str, embeddings, embedding_dim, level: int = 2, max_seq_len: int = 50):
+    def __init__(
+            self,
+            data_path: str,
+            # embeddings,
+            # embedding_dim,
+            level: int = 2,
+            max_seq_len: int = 50
+    ):
         # read in all the data from the PDTB files
         # do preprocessing and store the data
         # build vocabulary if needed - tokenidx mapping
         # then need it to be encoded as tensors
         self.data_path = data_path
-        self.embeddings = embeddings
+        # self.embeddings = embeddings
         self.raw_data = []
         self.relations = []
         self.word2idx = {}
@@ -61,8 +68,8 @@ class PDTBDataset(Dataset):
         self.build_vocab()
         self.build_label_map()
         self.num_classes = len(self.labels)
-        self.embedding_matrix = self.build_embedding_matrix(
-            self.embeddings, embedding_dim=embedding_dim)
+        # self.embedding_matrix = self.build_embedding_matrix(
+        #     self.embeddings, embedding_dim=embedding_dim)
 
         # if embedding_type == "random":
         #     self.embedding_matrix = self.random_embeddings(
@@ -75,7 +82,7 @@ class PDTBDataset(Dataset):
         return len(self.relations)
 
     def __getitem__(self, idx):
-        item = (self.relation_indices[idx])
+        item = self.relation_indices[idx]
         # item = torch.tensor(self.relation_indices[idx])
         # turn these into one-hot vectors
         # use the one-hot vectors to get embeddings
@@ -86,16 +93,19 @@ class PDTBDataset(Dataset):
         #     word_embedding = self.embedding_matrix[idx]
         #     sent_embedding[i] = word_embedding
 
-        word_embeddings = torch.stack(
-            [self.embedding_matrix[idx] for idx in item])
-        connective_embedding = word_embeddings[0]
-        avg_embedding = torch.mean(word_embeddings, dim=0)
+        # handle the embeddings in the models instead
+        # word_embeddings = torch.stack(
+        #     [self.embedding_matrix[idx] for idx in item])
+        # connective_embedding = word_embeddings[0]
+        # avg_embedding = torch.mean(word_embeddings, dim=0)
         # avg_norm_embedding = avg_embedding / torch.norm(avg_embedding)
         # sum_embedding = torch.sum(embeddings, dim=0)
 
+        # get the correct label at the desired level
         label = torch.tensor(self.label2idx[to_level(
             self.relations[idx].sense, self.level)])
-        return avg_embedding + connective_embedding, label
+        return torch.tensor(item), label
+        # return avg_embedding + connective_embedding, label
 
     def build_vocab(self):
         # Implement vocabulary building here
@@ -107,12 +117,15 @@ class PDTBDataset(Dataset):
         for item in self.relations:
             relation_idx = []
             for token in item.tokenize():
+                # build vocab (token-idx mapping)
                 if token not in self.word2idx:
                     idx = len(self.word2idx)
                     self.word2idx[token] = idx
                     self.idx2word[idx] = token
+                # build relation sequence as token indices
                 relation_idx.append(self.word2idx[token])
 
+            # truncate or pad each sequence to max_seq_len
             if len(relation_idx) > self.max_seq_len:
                 relation_idx = relation_idx[:self.max_seq_len]
             else:
@@ -126,18 +139,18 @@ class PDTBDataset(Dataset):
             self.label2idx[label] = idx
             self.idx2label[idx] = label
 
-    def build_embedding_matrix(self, embeddings, embedding_dim):
-        # Create an embedding matrix
-        embedding_matrix = []
-        for idx, word in tqdm(self.idx2word.items(), desc="Building embedding matrix"):
-            if word in embeddings:
-                embedding_matrix.append(embeddings[word])
-            else:
-                # If the word is not found in GloVe, initialize it randomly
-                # TODO: maybe some other way to do this?
-                embedding_matrix.append(list(torch.randn(embedding_dim)))
+    # def build_embedding_matrix(self, embeddings, embedding_dim):
+    #     # Create an embedding matrix
+    #     embedding_matrix = []
+    #     for idx, word in tqdm(self.idx2word.items(), desc="Building embedding matrix"):
+    #         if word in embeddings:
+    #             embedding_matrix.append(embeddings[word])
+    #         else:
+    #             # If the word is not found in GloVe, initialize it randomly
+    #             # TODO: maybe some other way to do this?
+    #             embedding_matrix.append(list(torch.randn(embedding_dim)))
 
-        return torch.tensor(embedding_matrix)
+    #     return torch.tensor(embedding_matrix)
 
 
 class Relation:
@@ -165,7 +178,9 @@ class GloveEmbeddingTypes(enum.Enum):
     glove50 = "glove\wiki_giga_2024_50_MFT20_vectors_seed_123_alpha_0.75_eta_0.075_combined.txt"
 
 
-def build_glove_embeddings(glove_path: str) -> dict[str, list[float]]:
+def process_glove_file(
+        glove_path: str,
+) -> dict[str, list[float]]:
     """Builds a dictionary of GloVe embeddings from the specified file.
     Args:
         glove_path (str): Path to the GloVe embeddings file.
@@ -173,7 +188,7 @@ def build_glove_embeddings(glove_path: str) -> dict[str, list[float]]:
     Returns:
         dict[str, list[float]]: A dictionary mapping words to their GloVe embeddings.
     """
-    # Load GloVe embeddings from the specified path
+    # Load and process GloVe embeddings from the specified path
     embeddings = {}
     with open(glove_path, 'r', encoding='utf-8') as f:
         for line in tqdm(f, desc="Loading GloVe embeddings"):
@@ -190,14 +205,42 @@ def build_glove_embeddings(glove_path: str) -> dict[str, list[float]]:
     return embeddings
 
 
-def build_random_embeddings(vocab_size: int, embedding_dim: int):
+def build_glove_embeddings(
+        vocab: dict[int, str],
+        embeddings: dict[str, list[float]],
+        embedding_dim: int
+) -> torch.Tensor:
+    """Builds an embedding matrix for the given vocabulary using GloVe embeddings.
+    Args:
+        vocab (dict[int, str]): A dictionary mapping token indices to words.
+        embeddings (dict[str, list[float]]): A dictionary of GloVe embeddings.
+        embedding_dim (int): The dimension of the embeddings.
 
-    # # Create a random embedding matrix
-    embeddings = nn.Embedding(num_embeddings=vocab_size,
-                              embedding_dim=embedding_dim)
-    # embedding_matrix = np.random.rand(vocab_size, embedding_dim).tolist()
-    # return embedding_matrix
-    pass  # Placeholder for actual implementation
+    Returns: 
+        torch.Tensor: The embedding matrix.
+    """
+    embedding_matrix = torch.zeros((len(vocab), embedding_dim))
+    print(embedding_matrix.shape)
+    for idx, word in tqdm(vocab.items(), desc="Building embedding matrix"):
+        # print(idx, word)
+        if word in embeddings:
+            embedding_matrix[idx] = torch.tensor(
+                embeddings[word], dtype=torch.float32)
+        else:
+            # If the word is not found in GloVe, initialize it randomly
+            # TODO: maybe some other way to do this?
+            embedding_matrix[idx] = torch.randn(embedding_dim)
+    return embedding_matrix
+
+
+# def build_random_embeddings(vocab_size: int, embedding_dim: int):
+
+#     # # Create a random embedding matrix
+#     embeddings = nn.Embedding(num_embeddings=vocab_size,
+#                               embedding_dim=embedding_dim)
+#     # embedding_matrix = np.random.rand(vocab_size, embedding_dim).tolist()
+#     # return embedding_matrix
+#     pass  # Placeholder for actual implementation
 
 
 def build_sparse_vector(instance, vocab):
