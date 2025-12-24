@@ -140,8 +140,6 @@ class MLP(nn.Module):
 class CNN(nn.Module):
     """CNN model"""
 
-    # TODO: implement CNN model for text classification
-
     def __init__(
         self,
         vocab_size: int,

@@ -1,0 +1,1 @@
+{"learning_rate":0.001,"batch_size":16,"num_epochs":5,"embedding_dim":50,"embedding_type":"random","max_seq_len":50,"hidden_dim":128,"num_hidden":1,"accuracy":0.2181536875,"precision":0.4297520661,"recall":0.1323155216,"f1":0.2023346304}

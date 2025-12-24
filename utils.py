@@ -59,7 +59,6 @@ def accuracy(y, preds):
 
 def precision(y, preds):
     """computes the precision given the true labels and predicted labels"""
-    # TODO: make sure this works for multi-class classification
     true_positives = ((y == 1) & (preds == 1)).sum().item()
     predicted_positives = (preds == 1).sum().item()
     if predicted_positives == 0:
@@ -69,7 +68,6 @@ def precision(y, preds):
 
 def recall(y, preds):
     """computes the recall given the true labels and predicted labels"""
-    # TODO: make sure this works for multi-class classification
     true_positives = ((y == 1) & (preds == 1)).sum().item()
     actual_positives = (y == 1).sum().item()
     if actual_positives == 0:
@@ -84,7 +82,3 @@ def f1_score(y, preds):
     if (p + r) == 0:
         return 0.0
     return 2 * (p * r) / (p + r)
-
-
-def grid_search():
-    pass  # Placeholder for actual implementation

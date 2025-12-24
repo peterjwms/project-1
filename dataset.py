@@ -196,8 +196,8 @@ def process_glove_file(
                 values = line.strip().split(' ')
                 word = values[0]
                 vector = list(map(float, values[1:]))
-                if len(vector) != 50:
-                    print(vector)
+                # if len(vector) != 50:
+                #     print(vector)
                 embeddings[word] = vector
             except ValueError:
                 continue  # Skip lines that don't conform to the expected format
@@ -228,19 +228,8 @@ def build_glove_embeddings(
                 embeddings[word], dtype=torch.float32)
         else:
             # If the word is not found in GloVe, initialize it randomly
-            # TODO: maybe some other way to do this?
             embedding_matrix[idx] = torch.randn(embedding_dim)
     return embedding_matrix
-
-
-# def build_random_embeddings(vocab_size: int, embedding_dim: int):
-
-#     # # Create a random embedding matrix
-#     embeddings = nn.Embedding(num_embeddings=vocab_size,
-#                               embedding_dim=embedding_dim)
-#     # embedding_matrix = np.random.rand(vocab_size, embedding_dim).tolist()
-#     # return embedding_matrix
-#     pass  # Placeholder for actual implementation
 
 
 def build_sparse_vector(instance, vocab):
